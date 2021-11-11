@@ -29,7 +29,7 @@ const int Height = 768;
 // initialize the position (coordinate) of each ball (ball0 ~ ball3)
 const float spherePos[4][2] = {{-5.7f, 0}, {+2.4f, 0}, {3.3f, 0}, {-2.7f, -0.9f}};
 // initialize the color of each ball (ball0 ~ ball3)
-const D3DXCOLOR sphereColor[4] = {d3d::RED, d3d::RED, d3d::YELLOW, d3d::WHITE};
+const D3DXCOLOR sphereColor[4] = {d3d::RED, d3d::RED, d3d::YELLOW, d3d::YELLOW};
 
 // -----------------------------------------------------------------------------
 // Transform matrices
@@ -54,6 +54,10 @@ private:
   float m_radius;
   float m_velocity_x;
   float m_velocity_z;
+
+protected:
+    //Morgan - Need this to not draw again ball already touched
+  int   dead;
 
 public:
   CSphere(void)
@@ -103,16 +107,26 @@ public:
     m_pSphereMesh->DrawSubset(0);
   }
 
-  bool hasIntersected(CSphere &ball)
+  //Morgan - Detect the collision between balls -> we will use in CPrincipalSphere in the function hitBy
+  bool hasIntersected(CSphere& ball)
   {
-    // Insert your code here.
+      D3DXVECTOR3 cord = this->getCenter();
+      float tX = cord.x;
+      float tZ = cord.z;
 
-    return false;
+      D3DXVECTOR3 cordball = ball.getCenter();
+      float ballx = cordball.x;
+      float ballz = cordball.z;
+
+      // we are using multiplications because it's faster than calling pow
+      float distance = sqrt((tX - ballx) * (tX - ballx) + (tZ - ballz) * (tZ - ballz));
+      return distance < (M_RADIUS + M_RADIUS);
   }
 
   void hitBy(CSphere &ball)
   {
     // Insert your code here.
+    // Morgan - Normal ball will not moved or anything so nothing to do here
   }
 
   void ballUpdate(float timeDiff)
@@ -128,15 +142,23 @@ public:
       float tZ = cord.z + TIME_SCALE * timeDiff * m_velocity_z;
 
       //correction of position of ball
-      // Please uncomment this part because this correction of ball position is necessary when a ball collides with a wall
-      /*if(tX >= (4.5 - M_RADIUS))
-				tX = 4.5 - M_RADIUS;
-			else if(tX <=(-4.5 + M_RADIUS))
-				tX = -4.5 + M_RADIUS;
-			else if(tZ <= (-3 + M_RADIUS))
-				tZ = -3 + M_RADIUS;
-			else if(tZ >= (3 - M_RADIUS))
-				tZ = 3 - M_RADIUS;*/
+      // Morgan - just uncomment it : Please uncomment this part because this correction of ball position is necessary when a ball collides with a wall
+      if (tX >= (4.5 - M_RADIUS)) {
+          tX = 4.5 - M_RADIUS;
+          this->setVelocity_X(-vx);
+      }
+      else if (tX <= (-4.5 + M_RADIUS)) {
+          tX = -4.5 + M_RADIUS;
+          this->setVelocity_X(vx);
+      }
+      else if (tZ <= (-3 + M_RADIUS)) {
+          tZ = -3 + M_RADIUS;
+          this->setVelocity_Z(vz);
+      }
+      else if (tZ >= (3 - M_RADIUS)) {
+          this->setVelocity_Z(-vz);
+          tZ = 3 - M_RADIUS;
+      }
 
       this->setCenter(tX, cord.y, tZ);
     }
@@ -153,6 +175,14 @@ public:
 
   double getVelocity_X() { return this->m_velocity_x; }
   double getVelocity_Z() { return this->m_velocity_z; }
+  //Morgan - Need to access velocity when the principal ball touch other ball or wall
+  void setVelocity_X(double velocity) { this->m_velocity_x = velocity; }
+  void setVelocity_Z(double velocity) { this->m_velocity_z = velocity; }
+  //Morgan - New attributs to tell if the the ball has be touched to not draw it again 
+  void setDead(int a) { dead = a; }
+  int getDead(void) { return dead; }
+
+
 
   void setPower(double vx, double vz)
   {
@@ -183,6 +213,40 @@ private:
   D3DXMATRIX m_mLocal;
   D3DMATERIAL9 m_mtrl;
   ID3DXMesh *m_pSphereMesh;
+
+  //Morgan - Just to try some stuff
+ public:
+      void setM_Mtrl(D3DXCOLOR color) {
+          m_mtrl.Ambient = color;
+          m_mtrl.Diffuse = color;
+          m_mtrl.Specular = color;
+          m_mtrl.Emissive = d3d::BLACK;
+          m_mtrl.Power = 5.0f;
+      }
+
+};
+
+// -----------------------------------------------------------------------------
+// CPrincipalSphere class definition
+// Morgan - Need to have a principale ball that can "kill" the other when they intersect
+// -----------------------------------------------------------------------------
+
+class CPrinpaleSphere : public CSphere {
+
+public:
+
+    //intersected on csphere
+
+    void hitBy(CSphere& ball)
+    {
+        if (this->hasIntersected(ball)) {
+            ball.setDead(1);
+            ball.destroy();
+            this->setVelocity_X(-this->getVelocity_X());
+            this->setVelocity_Z(-this->getVelocity_Z());
+        }
+        // Insert your code here.
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -247,15 +311,35 @@ public:
     m_pBoundMesh->DrawSubset(0);
   }
 
-  bool hasIntersected(CSphere &ball)
+  //Morgan - Intersection between wall and ball
+  bool hasIntersected(CSphere& ball)
   {
-    // Insert your code here.
-    return false;
+      D3DXVECTOR3 cord = ball.getCenter();
+      float tX = cord.x;
+      float tZ = cord.z;
+
+      if (tX >= (4.5 - M_RADIUS)) {
+          ball.setVelocity_X(-ball.getVelocity_X());
+          return true;
+      }
+      else if (tX <= (-4.5 + M_RADIUS)) {
+          return true;
+      }
+      else if (tZ <= (-3 + M_RADIUS)) {
+          return true;
+      }
+      else if (tZ >= (3 - M_RADIUS)) {
+          ball.setVelocity_Z(-ball.getVelocity_Z());
+          return true;
+      }
+      return false;
   }
 
-  void hitBy(CSphere &ball)
+  //Morgan - nothing to do because we don't want anything special
+  void hitBy(CSphere& ball)
   {
-    // Insert your code here.
+      //nothing happend to the wall if it's hit ! it's just a wall
+      // Insert your code here.
   }
 
   void setPosition(float x, float y, float z)
@@ -419,6 +503,7 @@ CSphere g_sphere[4];
 BallGenerator balls;
 CSphere g_target_blueball;
 CLight g_light;
+CPrinpaleSphere g_principal_ball;
 
 double g_camera_pos[3] = {0.0, 5.0, -8.0};
 
@@ -492,6 +577,10 @@ bool Setup()
     return false;
   g_target_blueball.setCenter(.0f, (float)M_RADIUS, .0f);
 
+  // Morgan - create green principale ball - THE WHITE ONE !
+  if (false == g_principal_ball.create(Device, d3d::WHITE)) return false;
+  g_principal_ball.setCenter(1.f, (float)M_RADIUS, 1.f);
+
   // light setting
   D3DLIGHT9 lit;
   ::ZeroMemory(&lit, sizeof(lit));
@@ -552,26 +641,24 @@ bool Display(float timeDelta)
     Device->BeginScene();
 
     // update the position of each ball. during update, check whether each ball hit by walls.
-    for (i = 0; i < 4; i++)
-    {
-      g_sphere[i].ballUpdate(timeDelta);
-      for (j = 0; j < 4; j++)
-      {
-        g_legowall[i].hitBy(g_sphere[j]);
-      }
+    g_principal_ball.ballUpdate(timeDelta);
+    for (i = 0; i < 4; i++) {
+        g_sphere[i].ballUpdate(timeDelta);
+        //Morgan - We will check for our principale ball too
+        g_legowall[i].hitBy(g_principal_ball);
+        for (j = 0; j < 4; j++) {
+            g_legowall[i].hitBy(g_sphere[j]);
+        }
     }
 
     // check whether any two balls hit together and update the direction of balls
-    for (i = 0; i < 4; i++)
-    {
-      for (j = 0; j < 4; j++)
-      {
-        if (i >= j)
-        {
-          continue;
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 4; j++) {
+            if (i >= j) { continue; }
+            g_sphere[i].hitBy(g_sphere[j]);
         }
-        g_sphere[i].hitBy(g_sphere[j]);
-      }
+        //Morgan - Check for the principale ball too
+        g_principal_ball.hitBy(g_sphere[i]);
     }
 
     // draw plane, walls, and spheres
@@ -579,11 +666,14 @@ bool Display(float timeDelta)
     for (i = 0; i < 4; i++)
     {
       g_legowall[i].draw(Device, g_mWorld);
-      g_sphere[i].draw(Device, g_mWorld);
+      if (g_sphere[i].getDead() != 1) {
+          g_sphere[i].draw(Device, g_mWorld);
+      }
     }
 	balls.Draw();
 	CustomDrawFont(font, (1024 / 2) - 50, 700, 255, 255, 255, 255, "Press space");
     g_target_blueball.draw(Device, g_mWorld);
+    g_principal_ball.draw(Device, g_mWorld); //Morgan - Think to draw again the principale ball
     g_light.draw(Device);
 
     Device->EndScene();
@@ -627,24 +717,34 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       break;
     case VK_SPACE:
 
-      D3DXVECTOR3 targetpos = g_target_blueball.getCenter();
-      D3DXVECTOR3 whitepos = g_sphere[3].getCenter();
-      double theta = acos(sqrt(pow(targetpos.x - whitepos.x, 2)) / sqrt(pow(targetpos.x - whitepos.x, 2) +
-                                                                        pow(targetpos.z - whitepos.z, 2))); // �⺻ 1 ��и�
-      if (targetpos.z - whitepos.z <= 0 && targetpos.x - whitepos.x >= 0)
-      {
-        theta = -theta;
-      } //4 ��и�
-      if (targetpos.z - whitepos.z >= 0 && targetpos.x - whitepos.x <= 0)
-      {
-        theta = PI - theta;
-      } //2 ��и�
-      if (targetpos.z - whitepos.z <= 0 && targetpos.x - whitepos.x <= 0)
-      {
-        theta = PI + theta;
-      } // 3 ��и�
-      double distance = sqrt(pow(targetpos.x - whitepos.x, 2) + pow(targetpos.z - whitepos.z, 2));
-      g_sphere[3].setPower(distance * cos(theta), distance * sin(theta));
+      //D3DXVECTOR3 targetpos = g_target_blueball.getCenter();
+      //D3DXVECTOR3 whitepos = g_sphere[3].getCenter();
+      //double theta = acos(sqrt(pow(targetpos.x - whitepos.x, 2)) / sqrt(pow(targetpos.x - whitepos.x, 2) +
+      //                                                                  pow(targetpos.z - whitepos.z, 2))); // �⺻ 1 ��и�
+      //if (targetpos.z - whitepos.z <= 0 && targetpos.x - whitepos.x >= 0)
+      //{
+      //  theta = -theta;
+      //} //4 ��и�
+      //if (targetpos.z - whitepos.z >= 0 && targetpos.x - whitepos.x <= 0)
+      //{
+      //  theta = PI - theta;
+      //} //2 ��и�
+      //if (targetpos.z - whitepos.z <= 0 && targetpos.x - whitepos.x <= 0)
+      //{
+      //  theta = PI + theta;
+      //} // 3 ��и�
+      //double distance = sqrt(pow(targetpos.x - whitepos.x, 2) + pow(targetpos.z - whitepos.z, 2));
+      //g_sphere[3].setPower(distance * cos(theta), distance * sin(theta));
+
+      //Morgan - We will to link the space button and our ball;
+      D3DXVECTOR3 targetposBIS = g_target_blueball.getCenter();
+      D3DXVECTOR3	whiteposBIS = g_principal_ball.getCenter();
+      double thetaBIS = acos(sqrt(pow(targetposBIS.x - whiteposBIS.x, 2)) / sqrt(pow(targetposBIS.x - whiteposBIS.x, 2) + pow(targetposBIS.z - whiteposBIS.z, 2)));		// ±âº» 1 »çºÐ¸é
+      if (targetposBIS.z - whiteposBIS.z <= 0 && targetposBIS.x - whiteposBIS.x >= 0) { thetaBIS = -thetaBIS; }	//4 »çºÐ¸é
+      if (targetposBIS.z - whiteposBIS.z >= 0 && targetposBIS.x - whiteposBIS.x <= 0) { thetaBIS = PI - thetaBIS; } //2 »çºÐ¸é
+      if (targetposBIS.z - whiteposBIS.z <= 0 && targetposBIS.x - whiteposBIS.x <= 0) { thetaBIS = PI + thetaBIS; } // 3 »çºÐ¸é
+      double distanceBIS = sqrt(pow(targetposBIS.x - whiteposBIS.x, 2) + pow(targetposBIS.z - whiteposBIS.z, 2));
+      g_principal_ball.setPower(distanceBIS * cos(thetaBIS), distanceBIS * sin(thetaBIS));
 
       break;
     }
