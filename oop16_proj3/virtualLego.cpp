@@ -77,6 +77,7 @@ public:
     if (NULL == pDevice)
       return false;
 
+	dead = 0;
     m_mtrl.Ambient = color;
     m_mtrl.Diffuse = color;
     m_mtrl.Specular = color;
@@ -237,15 +238,17 @@ public:
 
     //intersected on csphere
 
-    void hitBy(CSphere& ball)
+    bool hitBy(CSphere& ball)
     {
-        if (this->hasIntersected(ball)) {
+        if (this->hasIntersected(ball) && ball.getDead() != 1) {
             ball.setDead(1);
             ball.destroy();
             this->setVelocity_X(-this->getVelocity_X());
             this->setVelocity_Z(-this->getVelocity_Z());
+			return (true);
         }
         // Insert your code here.
+		return (false);
     }
 };
 
@@ -487,6 +490,19 @@ public:
 			_spheres[i].draw(Device, g_mWorld);
 		}
 	}
+
+	void CheckCollision(CPrinpaleSphere &mainSphere) {
+		int i = 0;
+		while (i != _spheres.size()) {
+			if (mainSphere.hitBy(_spheres[i])) {
+				_spheres.erase(_spheres.begin() + i);
+				i = 0;
+			}
+			else {
+				i++;
+			}
+		}
+	}
 private:
 	std::vector<CSphere> _spheres;
 	int _maxBalls;
@@ -516,7 +532,7 @@ void destroyAllLegoBlock(void)
 }
 
 /*
-	Custom function to draw text
+	Custom function to draw text (Yoan)
 */
 bool CustomDrawFont(LPD3DXFONT font, unsigned int x, unsigned int y, int alpha, unsigned char r, unsigned char g, unsigned char b, LPCSTR message)
 {	// Create a colour for the text
@@ -661,6 +677,9 @@ bool Display(float timeDelta)
         g_principal_ball.hitBy(g_sphere[i]);
     }
 
+	// Yoan - Check for collisions with main sphere
+	balls.CheckCollision(g_principal_ball);
+
     // draw plane, walls, and spheres
     g_legoPlane.draw(Device, g_mWorld);
     for (i = 0; i < 4; i++)
@@ -670,6 +689,7 @@ bool Display(float timeDelta)
           g_sphere[i].draw(Device, g_mWorld);
       }
     }
+	// Draw the "random balls"
 	balls.Draw();
 	CustomDrawFont(font, (1024 / 2) - 50, 700, 255, 255, 255, 255, "Press space");
     g_target_blueball.draw(Device, g_mWorld);
