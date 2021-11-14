@@ -25,11 +25,6 @@ IDirect3DDevice9 *Device = NULL;
 const int Width = 1024;
 const int Height = 768;
 
-// There are four balls
-// initialize the position (coordinate) of each ball (ball0 ~ ball3)
-const float spherePos[4][2] = {{-5.7f, 0}, {+2.4f, 0}, {3.3f, 0}, {-2.7f, -0.9f}};
-// initialize the color of each ball (ball0 ~ ball3)
-const D3DXCOLOR sphereColor[4] = {d3d::RED, d3d::RED, d3d::YELLOW, d3d::YELLOW};
 
 // -----------------------------------------------------------------------------
 // Transform matrices
@@ -41,7 +36,7 @@ D3DXMATRIX g_mProj;
 #define M_RADIUS 0.21 // ball radius
 #define PI 3.14159265
 #define M_HEIGHT 0.01
-#define DECREASE_RATE 0.9982
+#define DECREASE_RATE 1
 
 // -----------------------------------------------------------------------------
 // CSphere class definition
@@ -167,11 +162,11 @@ public:
     {
       this->setPower(0, 0);
     }
-    //this->setPower(this->getVelocity_X() * DECREASE_RATE, this->getVelocity_Z() * DECREASE_RATE);
+    // this->setPower(this->getVelocity_X() * DECREASE_RATE, this->getVelocity_Z() * DECREASE_RATE);
     double rate = 1 - (1 - DECREASE_RATE) * timeDiff * 400;
     if (rate < 0)
       rate = 0;
-    this->setPower(getVelocity_X() * rate, getVelocity_Z() * rate);
+   this->setPower(getVelocity_X() * rate, getVelocity_Z() * rate);
   }
 
   double getVelocity_X() { return this->m_velocity_x; }
@@ -250,6 +245,42 @@ public:
         // Insert your code here.
 		return (false);
     }
+
+	bool hitByPad(CSphere& ball)
+	{
+		if (this->hasIntersected(ball)) {
+			this->setVelocity_X(-this->getVelocity_X());
+			this->setVelocity_Z(-this->getVelocity_Z());
+			return (true);
+		}
+		// Insert your code here.
+		return (false);
+	}
+
+	void setIsOnPad(bool n) { isOnPad = n; }
+
+	bool getIsOnPad() { return (isOnPad); }
+
+	void setOnPad(CSphere& pad)
+	{
+		isOnPad = true;
+		D3DXVECTOR3 padPos = pad.getCenter();
+		this->setCenter(padPos.x + (float)M_RADIUS * 3, (float)M_RADIUS, padPos.z);
+	}
+
+	void Launch(CSphere& pad)
+	{
+		isOnPad = false;
+		if (pad.getVelocity_Z() > 0) {
+			this->setPower(2, 1.5);
+		}
+		else {
+			this->setPower(2, -1.5);
+		}
+	}
+
+private:
+	bool isOnPad;
 };
 
 // -----------------------------------------------------------------------------
@@ -468,8 +499,8 @@ public:
 	void InitBalls(int maxBalls, D3DXCOLOR ballsColor, IDirect3DDevice9 *device) {
 		std::random_device rd;
 		std::mt19937 mt(rd());
-		std::uniform_real_distribution<float> distX(-4.0f, 4.0f);
-		std::uniform_real_distribution<float> distZ(-2.90f, 2.90f);
+		std::uniform_real_distribution<float> distX(-3.0f, 4.0f);
+		std::uniform_real_distribution<float> distZ(-2.5f, 2.50f);
 
 		_maxBalls = maxBalls;
 
@@ -514,10 +545,9 @@ private:
 // -----------------------------------------------------------------------------
 LPD3DXFONT font = NULL;
 CWall g_legoPlane;
-CWall g_legowall[4];
-CSphere g_sphere[4];
+CWall g_legowall[3];
 BallGenerator balls;
-CSphere g_target_blueball;
+CSphere pad;
 CLight g_light;
 CPrinpaleSphere g_principal_ball;
 
@@ -551,7 +581,7 @@ bool Setup()
 {
   int i;
 
-  D3DXCreateFont(Device, 17, 0, FW_BOLD, 0, false, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, TEXT("Arial"), &font);
+  D3DXCreateFont(Device, 30, 0, FW_BOLD, 0, false, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, TEXT("Arial"), &font);
   D3DXMatrixIdentity(&g_mWorld);
   D3DXMatrixIdentity(&g_mView);
   D3DXMatrixIdentity(&g_mProj);
@@ -562,40 +592,29 @@ bool Setup()
   g_legoPlane.setPosition(0.0f, -0.0006f / 5, 0.0f);
 
   // create walls and set the position. note that there are four walls
-  if (false == g_legowall[0].create(Device, -1, -1, 9, 0.3f, 0.12f, d3d::DARKRED))
+  if (false == g_legowall[0].create(Device, -1, -1, 9, 0.3f, 0.12f, d3d::BLACK))
     return false;
   g_legowall[0].setPosition(0.0f, 0.12f, 3.06f);
-  if (false == g_legowall[1].create(Device, -1, -1, 9, 0.3f, 0.12f, d3d::DARKRED))
+  if (false == g_legowall[1].create(Device, -1, -1, 9, 0.3f, 0.12f, d3d::BLACK))
     return false;
   g_legowall[1].setPosition(0.0f, 0.12f, -3.06f);
-  if (false == g_legowall[2].create(Device, -1, -1, 0.12f, 0.3f, 6.24f, d3d::DARKRED))
+  if (false == g_legowall[2].create(Device, -1, -1, 0.12f, 0.3f, 6.24f, d3d::BLACK))
     return false;
   g_legowall[2].setPosition(4.56f, 0.12f, 0.0f);
-  if (false == g_legowall[3].create(Device, -1, -1, 0.12f, 0.3f, 6.24f, d3d::DARKRED))
-    return false;
-  g_legowall[3].setPosition(-4.56, 0.12f, 0.0f);
-
-  // create four balls and set the position
-  for (i = 0; i < 4; i++)
-  {
-    if (false == g_sphere[i].create(Device, sphereColor[i]))
-      return false;
-    g_sphere[i].setCenter(spherePos[i][0], (float)M_RADIUS, spherePos[i][1]);
-    g_sphere[i].setPower(0, 0);
-  }
 
   // Yoan: Create spheres
   // Params: Number of spheres, Color, Device
-  balls.InitBalls(20, d3d::MAGENTA, Device);
+  balls.InitBalls(20, d3d::YELLOW, Device);
 
-  // create blue ball for set direction
-  if (false == g_target_blueball.create(Device, d3d::BLUE))
+  // Yoan: Create pad
+  if (false == pad.create(Device, d3d::WHITE))
     return false;
-  g_target_blueball.setCenter(.0f, (float)M_RADIUS, .0f);
+  pad.setCenter(-4.5f, (float)M_RADIUS, 0);
 
-  // Morgan - create green principale ball - THE WHITE ONE !
-  if (false == g_principal_ball.create(Device, d3d::WHITE)) return false;
-  g_principal_ball.setCenter(1.f, (float)M_RADIUS, 1.f);
+  // Yoan: Create red (bouncy ball) !
+  if (false == g_principal_ball.create(Device, d3d::RED)) return false;
+  g_principal_ball.setCenter(-4.5f + (float)M_RADIUS * 3, (float)M_RADIUS, 0);
+  g_principal_ball.setIsOnPad(true);
 
   // light setting
   D3DLIGHT9 lit;
@@ -613,7 +632,7 @@ bool Setup()
     return false;
 
   // Position and aim the camera.
-  D3DXVECTOR3 pos(0.0f, 5.0f, -8.0f);
+  D3DXVECTOR3 pos(0.0f, 10.0f, -6.0f);
   D3DXVECTOR3 target(0.0f, 0.0f, 0.0f);
   D3DXVECTOR3 up(0.0f, 2.0f, 0.0f);
   D3DXMatrixLookAtLH(&g_mView, &pos, &target, &up);
@@ -636,7 +655,7 @@ bool Setup()
 void Cleanup(void)
 {
   g_legoPlane.destroy();
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < 3; i++)
   {
     g_legowall[i].destroy();
   }
@@ -657,42 +676,33 @@ bool Display(float timeDelta)
     Device->BeginScene();
 
     // update the position of each ball. during update, check whether each ball hit by walls.
-    g_principal_ball.ballUpdate(timeDelta);
-    for (i = 0; i < 4; i++) {
-        g_sphere[i].ballUpdate(timeDelta);
+	if (g_principal_ball.getIsOnPad()) {
+		g_principal_ball.setOnPad(pad);
+	}
+	else {
+		g_principal_ball.ballUpdate(timeDelta);
+	}
+	pad.ballUpdate(timeDelta);
+
+    for (i = 0; i < 3; i++) {
         //Morgan - We will check for our principale ball too
         g_legowall[i].hitBy(g_principal_ball);
-        for (j = 0; j < 4; j++) {
-            g_legowall[i].hitBy(g_sphere[j]);
-        }
-    }
-
-    // check whether any two balls hit together and update the direction of balls
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 4; j++) {
-            if (i >= j) { continue; }
-            g_sphere[i].hitBy(g_sphere[j]);
-        }
-        //Morgan - Check for the principale ball too
-        g_principal_ball.hitBy(g_sphere[i]);
     }
 
 	// Yoan - Check for collisions with main sphere
 	balls.CheckCollision(g_principal_ball);
+	g_principal_ball.hitByPad(pad);
 
     // draw plane, walls, and spheres
     g_legoPlane.draw(Device, g_mWorld);
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < 3; i++)
     {
       g_legowall[i].draw(Device, g_mWorld);
-      if (g_sphere[i].getDead() != 1) {
-          g_sphere[i].draw(Device, g_mWorld);
-      }
     }
 	// Draw the "random balls"
 	balls.Draw();
-	CustomDrawFont(font, (1024 / 2) - 50, 700, 255, 255, 255, 255, "Press space");
-    g_target_blueball.draw(Device, g_mWorld);
+	CustomDrawFont(font, (1024 / 2) - 100, 700, 255, 255, 255, 255, "Press SPACE to start");
+    pad.draw(Device, g_mWorld);
     g_principal_ball.draw(Device, g_mWorld); //Morgan - Think to draw again the principale ball
     g_light.draw(Device);
 
@@ -735,6 +745,12 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                                (wire ? D3DFILL_WIREFRAME : D3DFILL_SOLID));
       }
       break;
+	case VK_LEFT:
+		pad.setPower(0, 1.5f);
+		break;
+	case VK_RIGHT:
+		pad.setPower(0, -1.5f);
+		break;
     case VK_SPACE:
 
       //D3DXVECTOR3 targetpos = g_target_blueball.getCenter();
@@ -757,14 +773,15 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       //g_sphere[3].setPower(distance * cos(theta), distance * sin(theta));
 
       //Morgan - We will to link the space button and our ball;
-      D3DXVECTOR3 targetposBIS = g_target_blueball.getCenter();
+      /*D3DXVECTOR3 targetposBIS = pad.getCenter();
       D3DXVECTOR3	whiteposBIS = g_principal_ball.getCenter();
       double thetaBIS = acos(sqrt(pow(targetposBIS.x - whiteposBIS.x, 2)) / sqrt(pow(targetposBIS.x - whiteposBIS.x, 2) + pow(targetposBIS.z - whiteposBIS.z, 2)));		// ±âº» 1 »çºÐ¸é
       if (targetposBIS.z - whiteposBIS.z <= 0 && targetposBIS.x - whiteposBIS.x >= 0) { thetaBIS = -thetaBIS; }	//4 »çºÐ¸é
       if (targetposBIS.z - whiteposBIS.z >= 0 && targetposBIS.x - whiteposBIS.x <= 0) { thetaBIS = PI - thetaBIS; } //2 »çºÐ¸é
       if (targetposBIS.z - whiteposBIS.z <= 0 && targetposBIS.x - whiteposBIS.x <= 0) { thetaBIS = PI + thetaBIS; } // 3 »çºÐ¸é
       double distanceBIS = sqrt(pow(targetposBIS.x - whiteposBIS.x, 2) + pow(targetposBIS.z - whiteposBIS.z, 2));
-      g_principal_ball.setPower(distanceBIS * cos(thetaBIS), distanceBIS * sin(thetaBIS));
+      g_principal_ball.setPower(distanceBIS * cos(thetaBIS), distanceBIS * sin(thetaBIS));*/
+	g_principal_ball.Launch(pad);
 
       break;
     }
@@ -818,8 +835,8 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         dx = (old_x - new_x); // * 0.01f;
         dy = (old_y - new_y); // * 0.01f;
 
-        D3DXVECTOR3 coord3d = g_target_blueball.getCenter();
-        g_target_blueball.setCenter(coord3d.x + dx * (-0.007f), coord3d.y, coord3d.z + dy * 0.007f);
+        D3DXVECTOR3 coord3d = pad.getCenter();
+        pad.setCenter(coord3d.x + dx * (-0.007f), coord3d.y, coord3d.z + dy * 0.007f);
       }
       old_x = new_x;
       old_y = new_y;
