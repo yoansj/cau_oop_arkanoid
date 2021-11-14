@@ -46,12 +46,12 @@ class CSphere
 {
 private:
   float center_x, center_y, center_z;
-  float m_radius;
-  float m_velocity_x;
-  float m_velocity_z;
 
 protected:
     //Morgan - Need this to not draw again ball already touched
+	float m_radius;
+	float m_velocity_x;
+	float m_velocity_z;
   int   dead;
 
 public:
@@ -144,8 +144,8 @@ public:
           this->setVelocity_X(-vx);
       }
       else if (tX <= (-4.5 + M_RADIUS)) {
-          tX = -4.5 + M_RADIUS;
-          this->setVelocity_X(vx);
+			  tX = -4.5 + M_RADIUS;
+			this->setVelocity_X(vx);
       }
       else if (tZ <= (-3 + M_RADIUS)) {
           tZ = -3 + M_RADIUS;
@@ -242,7 +242,6 @@ public:
             this->setVelocity_Z(-this->getVelocity_Z());
 			return (true);
         }
-        // Insert your code here.
 		return (false);
     }
 
@@ -253,8 +252,50 @@ public:
 			this->setVelocity_Z(-this->getVelocity_Z());
 			return (true);
 		}
-		// Insert your code here.
 		return (false);
+	}
+
+	void ballUpdate(float timeDiff, CSphere &pad)
+	{
+		const float TIME_SCALE = 3.3;
+		D3DXVECTOR3 cord = this->getCenter();
+		double vx = abs(this->getVelocity_X());
+		double vz = abs(this->getVelocity_Z());
+
+		if (vx > 0.01 || vz > 0.01)
+		{
+			float tX = cord.x + TIME_SCALE * timeDiff * m_velocity_x;
+			float tZ = cord.z + TIME_SCALE * timeDiff * m_velocity_z;
+
+			//correction of position of ball
+			// Morgan - just uncomment it : Please uncomment this part because this correction of ball position is necessary when a ball collides with a wall
+			if (tX >= (4.5 - M_RADIUS)) {
+				tX = 4.5 - M_RADIUS;
+				this->setVelocity_X(-vx);
+			}
+			else if (tX <= (-7)) {
+				// Loose a life here
+				this->setOnPad(pad);
+			}
+			else if (tZ <= (-3 + M_RADIUS)) {
+				tZ = -3 + M_RADIUS;
+				this->setVelocity_Z(vz);
+			}
+			else if (tZ >= (3 - M_RADIUS)) {
+				this->setVelocity_Z(-vz);
+				tZ = 3 - M_RADIUS;
+			}
+
+			this->setCenter(tX, cord.y, tZ);
+		}
+		else
+		{
+			this->setPower(0, 0);
+		}
+		double rate = 1 - (1 - DECREASE_RATE) * timeDiff * 400;
+		if (rate < 0)
+			rate = 0;
+		this->setPower(getVelocity_X() * rate, getVelocity_Z() * rate);
 	}
 
 	void setIsOnPad(bool n) { isOnPad = n; }
@@ -394,6 +435,7 @@ private:
   D3DXMATRIX m_mLocal;
   D3DMATERIAL9 m_mtrl;
   ID3DXMesh *m_pBoundMesh;
+
 };
 
 // -----------------------------------------------------------------------------
@@ -680,14 +722,9 @@ bool Display(float timeDelta)
 		g_principal_ball.setOnPad(pad);
 	}
 	else {
-		g_principal_ball.ballUpdate(timeDelta);
+		g_principal_ball.ballUpdate(timeDelta, pad);
 	}
 	pad.ballUpdate(timeDelta);
-
-    for (i = 0; i < 3; i++) {
-        //Morgan - We will check for our principale ball too
-        g_legowall[i].hitBy(g_principal_ball);
-    }
 
 	// Yoan - Check for collisions with main sphere
 	balls.CheckCollision(g_principal_ball);
